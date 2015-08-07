@@ -1,0 +1,6 @@
+{
+	"twilioSID": "YOUR-APP-SID-HERE",
+	"twilioAuthToken": "YOUR-AUTH-TOKEN-HERE",
+	"URL":"http://example.com",
+	"Phones":["+12345678900","+19876543210"]
+}
