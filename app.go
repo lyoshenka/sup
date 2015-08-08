@@ -152,7 +152,12 @@ func main() {
 		},
 		cli.BoolFlag{
 			Name:  "forever",
-			Usage: "run ping on repeate",
+			Usage: "run ping on repeat",
+		},
+		cli.IntFlag{
+			Name:  "pingFreq",
+			Usage: "with --forever, how often to ping the site (in seconds)",
+			Value: 60,
 		},
 	}
 
@@ -188,9 +193,10 @@ func main() {
 
 	app.Action = func(c *cli.Context) {
 		if c.Bool("forever") {
+			fmt.Printf("Pinging every %d seconds\n", c.GlobalInt("pingFreq"))
 			for {
 				pingSite(c)
-				time.Sleep(10 * time.Second)
+				time.Sleep(time.Duration(c.GlobalInt("pingFreq")) * time.Second)
 			}
 		} else {
 			pingSite(c)
