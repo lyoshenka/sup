@@ -51,7 +51,6 @@ func loadStatus(statusFile string) StatusType {
 	}
 
 	return status
-
 }
 
 func saveStatus(statusFile string, status StatusType) {
@@ -84,15 +83,11 @@ func pingSite(c *cli.Context) {
 	statusFile := c.String("status")
 	simulateDown := c.Bool("down")
 
-	if simulateDown {
-		fmt.Println("We're going to pretend the site is down, even if it's not")
-	}
-
 	config := loadConfig(configFile)
 	status := loadStatus(statusFile)
 
 	if status.Disabled {
-		fmt.Println("Disabled")
+		log.Println("Disabled")
 		return
 	}
 
@@ -107,19 +102,19 @@ func pingSite(c *cli.Context) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("error")
 		fmt.Printf("%+v\n", err)
 		fmt.Printf("%+v\n", resp)
+		panic(err)
 	}
 
 	if simulateDown || resp.StatusCode != http.StatusOK {
-		fmt.Println("Site is down. Status is ", resp.StatusCode)
+		log.Println("Site is down. Status is ", resp.StatusCode)
 		status.NumErrors += 1
 		if status.NumErrors >= 5 {
 			callDevTeam(config)
 		}
 	} else {
-		fmt.Println("All is well")
+		log.Println("All is well")
 		status.NumErrors = 0
 	}
 
@@ -145,6 +140,11 @@ func main() {
 			Value:  "./status.json",
 			Usage:  "file where status information is written",
 			EnvVar: "STATUS_FILE",
+		},
+		cli.StringFlag{
+			Name:  "logfile",
+			Value: "",
+			Usage: "log messages go here. if not present, log to stdout",
 		},
 		cli.BoolFlag{
 			Name:  "down",
@@ -192,13 +192,25 @@ func main() {
 	}
 
 	app.Action = func(c *cli.Context) {
-		if c.Bool("forever") {
+		if c.GlobalString("logfile") != "" {
+			logfile, err := os.OpenFile(c.GlobalString("logfile"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			check(err)
+			defer logfile.Close()
+			log.SetOutput(logfile)
+		}
+
+		if c.GlobalBool("down") {
+			log.Println("We're going to pretend the site is down, even if it's not")
+		}
+
+		if c.GlobalBool("forever") {
 			fmt.Printf("Pinging every %d seconds\n", c.GlobalInt("pingFreq"))
 			for {
 				pingSite(c)
 				time.Sleep(time.Duration(c.GlobalInt("pingFreq")) * time.Second)
 			}
 		} else {
+			fmt.Println("Pinging site")
 			pingSite(c)
 		}
 	}
