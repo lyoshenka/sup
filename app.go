@@ -106,6 +106,7 @@ func pingSite(c *cli.Context) {
 		fmt.Printf("%+v\n", resp)
 		panic(err)
 	}
+	defer resp.Body.Close()
 
 	if simulateDown || resp.StatusCode != http.StatusOK {
 		log.Println("Site is down. Status is ", resp.StatusCode)
