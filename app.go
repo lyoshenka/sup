@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	// "github.com/sfreiberg/gotwilio"
 	"github.com/codegangsta/cli"
+	"github.com/sfreiberg/gotwilio"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -22,6 +22,7 @@ type ConfigType struct {
 	TwilioSID       string
 	TwilioAuthToken string
 	URL             string
+	CallFrom        string
 	Phones          []string
 }
 
@@ -61,20 +62,19 @@ func saveStatus(statusFile string, status StatusType) {
 }
 
 func callDevTeam(config ConfigType) {
-	// twilio := gotwilio.NewTwilioClient(config.TwilioSID, config.TwilioAuthToken)
-	// messageUrl := "http://twimlets.com/message?Message%5B0%5D=SITE%20IS%20DOWN!"
-	// callbackParams := gotwilio.NewCallbackParameters(messageUrl)
+	twilio := gotwilio.NewTwilioClient(config.TwilioSID, config.TwilioAuthToken)
+	messageUrl := "http://twimlets.com/message?Message%5B0%5D=SITE%20IS%20DOWN!"
+	callbackParams := gotwilio.NewCallbackParameters(messageUrl)
 
 	for _, num := range config.Phones {
 		fmt.Printf("!!! Calling %s\n", num)
 
-		// _, tException, tErr := twilio.CallWithUrlCallbacks("+14804184746", num, callbackParams)
-		// if tException != nil {
-		// 	log.Fatalln(tException)
-		// }
-		// if tErr != nil {
-		// 	log.Fatalln(tErr)
-		// }
+		_, tException, err := twilio.CallWithUrlCallbacks(config.CallFrom, num, callbackParams)
+		if tException != nil {
+			fmt.Printf("%+v\n", tException)
+			panic(err)
+		}
+		check(err)
 	}
 }
 
