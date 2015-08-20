@@ -114,9 +114,13 @@ type StatusType struct {
 	NumErrors  int
 }
 
-func loadConfig(configFile string) ConfigType {
+func loadConfig(configFile, key string) ConfigType {
 	file, err := ioutil.ReadFile(configFile)
 	check(err)
+
+	if len(key) > 0 {
+		file = decrypt([]byte(key), file)
+	}
 
 	var config ConfigType
 	json.Unmarshal(file, &config)
@@ -160,11 +164,12 @@ func callDevTeam(config ConfigType) {
 }
 
 func pingSite(c *cli.Context) {
-	configFile := c.String("config")
-	statusFile := c.String("status")
-	simulateDown := c.Bool("down")
+	key := c.GlobalString("key")
+	configFile := c.GlobalString("config")
+	statusFile := c.GlobalString("status")
+	simulateDown := c.GlobalBool("down")
 
-	config := loadConfig(configFile)
+	config := loadConfig(configFile, key)
 	status := loadStatus(statusFile)
 
 	if status.Disabled {
@@ -229,9 +234,10 @@ func main() {
 			Usage: "log messages go here. if not present, log to stdout",
 		},
 		cli.StringFlag{
-			Name:  "key",
-			Value: "",
-			Usage: "key to lock/unlock config file",
+			Name:   "key",
+			Value:  "",
+			Usage:  "key to lock/unlock config file",
+			EnvVar: "CONFIG_KEY",
 		},
 		cli.BoolFlag{
 			Name:  "down",
