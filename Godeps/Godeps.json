@@ -10,6 +10,10 @@
 		{
 			"ImportPath": "github.com/sfreiberg/gotwilio",
 			"Rev": "b7230c284bd0c1614c94d00b9998c49f9a2737d8"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/pbkdf2",
+			"Rev": "81bf7719a6b7ce9b665598222362b50122dfc13b"
 		}
 	]
 }

@@ -1,6 +1,14 @@
 package main
 
 import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
+	"github.com/topscore/sup/Godeps/_workspace/src/golang.org/x/crypto/pbkdf2"
+	"io"
+
 	"encoding/json"
 	"fmt"
 	"github.com/topscore/sup/Godeps/_workspace/src/github.com/codegangsta/cli"
@@ -16,6 +24,79 @@ func check(e error) {
 	if e != nil {
 		panic(e)
 	}
+}
+
+func pkcs5pad(src []byte, blockSize int) []byte {
+	padding := blockSize - len(src)%blockSize
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	return append(src, padtext...)
+}
+
+func pkcs5unpad(src []byte) []byte {
+	length := len(src)
+	unpadding := int(src[length-1])
+	return src[:(length - unpadding)]
+}
+
+func encrypt(key, plaintext []byte) []byte {
+	kdfSalt := make([]byte, 32)
+	if _, err := rand.Read(kdfSalt); err != nil {
+		panic(err)
+	}
+
+	derivedKey := pbkdf2.Key([]byte(key), kdfSalt, 4096, 32, sha256.New)
+
+	plaintext = pkcs5pad(plaintext, aes.BlockSize)
+	if len(plaintext)%aes.BlockSize != 0 {
+		panic("plaintext is not a multiple of the block size")
+	}
+
+	block, err := aes.NewCipher(derivedKey)
+	check(err)
+
+	iv := make([]byte, aes.BlockSize)
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		panic(err)
+	}
+
+	ciphertext := make([]byte, len(plaintext))
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(ciphertext, plaintext)
+
+	return append(kdfSalt, append(iv, ciphertext...)...)
+}
+
+func decrypt(key, ciphertext []byte) []byte {
+	if len(ciphertext) < 32+aes.BlockSize {
+		panic("ciphertext too short")
+	}
+
+	kdfSalt := ciphertext[:32]
+	ciphertext = ciphertext[32:]
+
+	derivedKey := pbkdf2.Key([]byte(key), kdfSalt, 4096, 32, sha256.New)
+
+	block, err := aes.NewCipher(derivedKey)
+	check(err)
+
+	iv := ciphertext[:aes.BlockSize]
+	ciphertext = ciphertext[aes.BlockSize:]
+
+	if len(ciphertext)%aes.BlockSize != 0 {
+		panic("ciphertext is not a multiple of the block size")
+	}
+
+	mode := cipher.NewCBCDecrypter(block, iv)
+
+	plaintext := make([]byte, len(ciphertext))
+	mode.CryptBlocks(plaintext, ciphertext)
+	plaintext = pkcs5unpad(plaintext)
+
+	// Its critical to note that ciphertexts must be authenticated (i.e. by
+	// using crypto/hmac) before being decrypted in order to avoid creating
+	// a padding oracle.
+
+	return plaintext
 }
 
 type ConfigType struct {
@@ -147,6 +228,11 @@ func main() {
 			Value: "",
 			Usage: "log messages go here. if not present, log to stdout",
 		},
+		cli.StringFlag{
+			Name:  "key",
+			Value: "",
+			Usage: "key to lock/unlock config file",
+		},
 		cli.BoolFlag{
 			Name:  "down",
 			Usage: "simulate the site being down",
@@ -188,6 +274,50 @@ func main() {
 				status := loadStatus(statusFile)
 				status.Disabled = true
 				saveStatus(statusFile, status)
+			},
+		},
+		{
+			Name:  "encrypt",
+			Usage: "encrypt config file",
+			Action: func(c *cli.Context) {
+				key := c.GlobalString("key")
+				if key == "" {
+					log.Println("key required to encrypt config")
+					return
+				}
+
+				plaintext, err := ioutil.ReadFile(c.GlobalString("config"))
+				check(err)
+
+				// It's important to remember that ciphertexts must be authenticated
+				// (i.e. by using crypto/hmac) as well as being encrypted in order to
+				// be secure.
+
+				err = ioutil.WriteFile(c.GlobalString("config"), encrypt([]byte(key), plaintext), 0644)
+				check(err)
+			},
+		},
+		{
+			Name:  "decrypt",
+			Usage: "decrypt config file",
+			Action: func(c *cli.Context) {
+				key := c.GlobalString("key")
+				if key == "" {
+					log.Println("key required to encrypt config")
+					return
+				}
+
+				ciphertext, err := ioutil.ReadFile(c.GlobalString("config"))
+				check(err)
+
+				plaintext := decrypt([]byte(key), ciphertext)
+
+				// Its critical to note that ciphertexts must be authenticated (i.e. by
+				// using crypto/hmac) before being decrypted in order to avoid creating
+				// a padding oracle.
+
+				err = ioutil.WriteFile(c.GlobalString("config"), plaintext, 0644)
+				check(err)
 			},
 		},
 	}
