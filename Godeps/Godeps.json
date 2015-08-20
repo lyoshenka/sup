@@ -1,0 +1,15 @@
+{
+	"ImportPath": "github.com/topscore/sup",
+	"GoVersion": "go1.4",
+	"Deps": [
+		{
+			"ImportPath": "github.com/codegangsta/cli",
+			"Comment": "1.2.0-139-g142e6cd",
+			"Rev": "142e6cd241a4dfbf7f07a018f1f8225180018da4"
+		},
+		{
+			"ImportPath": "github.com/sfreiberg/gotwilio",
+			"Rev": "b7230c284bd0c1614c94d00b9998c49f9a2737d8"
+		}
+	]
+}

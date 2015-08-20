@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/codegangsta/cli"
-	"github.com/sfreiberg/gotwilio"
+	"github.com/topscore/sup/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/topscore/sup/Godeps/_workspace/src/github.com/sfreiberg/gotwilio"
 	"io/ioutil"
 	"log"
 	"net/http"
