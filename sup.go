@@ -184,10 +184,11 @@ func pingSite(c *cli.Context) {
 		log.Fatalln(err)
 	}
 
+	req.Close = true
 	req.Header.Set("User-Agent", "TS Simple Uptime Checker")
 
 	resp, err := client.Do(req)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		fmt.Printf("%+v\n", err)
 		fmt.Printf("%+v\n", resp)
 		panic(err)
