@@ -4,4 +4,6 @@
 	"URL":"http://example.com",
 	"CallFrom":"+12121231234",
 	"Phones":["+12345678900","+19876543210"]
+	"HipchatAuthToken": "HIPCHAT-TOKEN",
+	"HipchatRoom": "12345"
 }

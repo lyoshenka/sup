@@ -1,18 +1,12 @@
 package main
 
 import (
-	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"crypto/sha256"
-	"github.com/topscore/sup/Godeps/_workspace/src/golang.org/x/crypto/pbkdf2"
-	"io"
-
 	"encoding/json"
 	"fmt"
+	"github.com/topscore/sup/Godeps/_workspace/src/github.com/andybons/hipchat"
 	"github.com/topscore/sup/Godeps/_workspace/src/github.com/codegangsta/cli"
 	"github.com/topscore/sup/Godeps/_workspace/src/github.com/sfreiberg/gotwilio"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -20,91 +14,23 @@ import (
 	"time"
 )
 
+var config ConfigType
+var verbose bool
+
 func check(e error) {
 	if e != nil {
 		panic(e)
 	}
 }
 
-func pkcs5pad(src []byte, blockSize int) []byte {
-	padding := blockSize - len(src)%blockSize
-	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
-	return append(src, padtext...)
-}
-
-func pkcs5unpad(src []byte) []byte {
-	length := len(src)
-	unpadding := int(src[length-1])
-	return src[:(length - unpadding)]
-}
-
-func encrypt(key, plaintext []byte) []byte {
-	kdfSalt := make([]byte, 32)
-	if _, err := rand.Read(kdfSalt); err != nil {
-		panic(err)
-	}
-
-	derivedKey := pbkdf2.Key([]byte(key), kdfSalt, 4096, 32, sha256.New)
-
-	plaintext = pkcs5pad(plaintext, aes.BlockSize)
-	if len(plaintext)%aes.BlockSize != 0 {
-		panic("plaintext is not a multiple of the block size")
-	}
-
-	block, err := aes.NewCipher(derivedKey)
-	check(err)
-
-	iv := make([]byte, aes.BlockSize)
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		panic(err)
-	}
-
-	ciphertext := make([]byte, len(plaintext))
-	mode := cipher.NewCBCEncrypter(block, iv)
-	mode.CryptBlocks(ciphertext, plaintext)
-
-	return append(kdfSalt, append(iv, ciphertext...)...)
-}
-
-func decrypt(key, ciphertext []byte) []byte {
-	if len(ciphertext) < 32+aes.BlockSize {
-		panic("ciphertext too short")
-	}
-
-	kdfSalt := ciphertext[:32]
-	ciphertext = ciphertext[32:]
-
-	derivedKey := pbkdf2.Key([]byte(key), kdfSalt, 4096, 32, sha256.New)
-
-	block, err := aes.NewCipher(derivedKey)
-	check(err)
-
-	iv := ciphertext[:aes.BlockSize]
-	ciphertext = ciphertext[aes.BlockSize:]
-
-	if len(ciphertext)%aes.BlockSize != 0 {
-		panic("ciphertext is not a multiple of the block size")
-	}
-
-	mode := cipher.NewCBCDecrypter(block, iv)
-
-	plaintext := make([]byte, len(ciphertext))
-	mode.CryptBlocks(plaintext, ciphertext)
-	plaintext = pkcs5unpad(plaintext)
-
-	// Its critical to note that ciphertexts must be authenticated (i.e. by
-	// using crypto/hmac) before being decrypted in order to avoid creating
-	// a padding oracle.
-
-	return plaintext
-}
-
 type ConfigType struct {
-	TwilioSID       string
-	TwilioAuthToken string
-	URL             string
-	CallFrom        string
-	Phones          []string
+	TwilioSID        string
+	TwilioAuthToken  string
+	URL              string
+	CallFrom         string
+	Phones           []string
+	HipchatAuthToken string
+	HipchatRoom      string
 }
 
 type StatusType struct {
@@ -114,17 +40,37 @@ type StatusType struct {
 	NumErrors  int
 }
 
+func hipchatMessage(message string) {
+	if config.HipchatAuthToken == "" || config.HipchatRoom == "" {
+		return
+	}
+
+	client := hipchat.NewClient(config.HipchatAuthToken)
+
+	err := client.PostMessage(hipchat.MessageRequest{
+		RoomId:        config.HipchatRoom,
+		From:          "SUP",
+		Message:       message,
+		Color:         hipchat.ColorRed,
+		MessageFormat: hipchat.FormatText,
+		Notify:        true,
+	})
+
+	check(err)
+}
+
 func loadConfig(configFile, key string) ConfigType {
 	file, err := ioutil.ReadFile(configFile)
 	check(err)
 
 	if len(key) > 0 {
-		file = decrypt([]byte(key), file)
+		file, err = decrypt([]byte(key), file)
+		check(err)
 	}
 
-	var config ConfigType
-	json.Unmarshal(file, &config)
-	return config
+	var conf ConfigType
+	json.Unmarshal(file, &conf)
+	return conf
 }
 
 func loadStatus(statusFile string) StatusType {
@@ -146,7 +92,7 @@ func saveStatus(statusFile string, status StatusType) {
 	check(err)
 }
 
-func callDevTeam(config ConfigType) {
+func callDevTeam() {
 	twilio := gotwilio.NewTwilioClient(config.TwilioSID, config.TwilioAuthToken)
 	messageUrl := "http://twimlets.com/message?Message%5B0%5D=SITE%20IS%20DOWN!"
 	callbackParams := gotwilio.NewCallbackParameters(messageUrl)
@@ -156,26 +102,34 @@ func callDevTeam(config ConfigType) {
 
 		_, tException, err := twilio.CallWithUrlCallbacks(config.CallFrom, num, callbackParams)
 		if tException != nil {
-			fmt.Printf("%+v\n", tException)
-			panic(err)
+			panic(fmt.Sprintf("Twilio error: %+v\n", tException))
 		}
 		check(err)
 	}
 }
 
 func pingSite(c *cli.Context) {
-	key := c.GlobalString("key")
-	configFile := c.GlobalString("config")
 	statusFile := c.GlobalString("status")
 	simulateDown := c.GlobalBool("down")
 
-	config := loadConfig(configFile, key)
 	status := loadStatus(statusFile)
 
 	if status.Disabled {
 		log.Println("Disabled")
 		return
 	}
+
+	defer func() {
+		if e := recover(); e != nil {
+			switch x := e.(type) {
+			case error:
+				hipchatMessage(x.Error())
+			default:
+				hipchatMessage(fmt.Sprintf("%v", x))
+			}
+			panic(e)
+		}
+	}()
 
 	client := &http.Client{}
 
@@ -199,10 +153,12 @@ func pingSite(c *cli.Context) {
 		log.Println("Site is down. Status is ", resp.StatusCode)
 		status.NumErrors += 1
 		if status.NumErrors >= 5 {
-			callDevTeam(config)
+			callDevTeam()
 		}
 	} else {
-		log.Println("All is well")
+		if verbose {
+			log.Println("All is well")
+		}
 		status.NumErrors = 0
 	}
 
@@ -243,6 +199,10 @@ func main() {
 		cli.BoolFlag{
 			Name:  "down",
 			Usage: "simulate the site being down",
+		},
+		cli.BoolFlag{
+			Name:  "verbose",
+			Usage: "verbose output",
 		},
 		cli.BoolFlag{
 			Name:  "forever",
@@ -300,7 +260,10 @@ func main() {
 				// (i.e. by using crypto/hmac) as well as being encrypted in order to
 				// be secure.
 
-				err = ioutil.WriteFile(c.GlobalString("config"), encrypt([]byte(key), plaintext), 0644)
+				ciphertext, err := encrypt([]byte(key), plaintext)
+				check(err)
+
+				err = ioutil.WriteFile(c.GlobalString("config"), ciphertext, 0644)
 				check(err)
 			},
 		},
@@ -317,7 +280,8 @@ func main() {
 				ciphertext, err := ioutil.ReadFile(c.GlobalString("config"))
 				check(err)
 
-				plaintext := decrypt([]byte(key), ciphertext)
+				plaintext, err := decrypt([]byte(key), ciphertext)
+				check(err)
 
 				// Its critical to note that ciphertexts must be authenticated (i.e. by
 				// using crypto/hmac) before being decrypted in order to avoid creating
@@ -337,18 +301,28 @@ func main() {
 			log.SetOutput(logfile)
 		}
 
+		verbose = c.GlobalBool("verbose")
+
+		config = loadConfig(c.GlobalString("config"), c.GlobalString("key"))
+
+		if config.URL == "" {
+			fmt.Println("No URL in config file. Either you forgot to set one, or you need to provide a decryption key.")
+			os.Exit(1)
+		}
+
 		if c.GlobalBool("down") {
 			log.Println("We're going to pretend the site is down, even if it's not")
 		}
 
 		if c.GlobalBool("forever") {
-			fmt.Printf("Pinging every %d seconds\n", c.GlobalInt("pingFreq"))
+			fmt.Printf("Pinging %s every %d seconds\n", config.URL, c.GlobalInt("pingFreq"))
 			for {
 				pingSite(c)
 				time.Sleep(time.Duration(c.GlobalInt("pingFreq")) * time.Second)
 			}
 		} else {
-			fmt.Println("Pinging site")
+			// config.URL = "http://httpstat.us/504"
+			fmt.Printf("Pinging %s\n", config.URL)
 			pingSite(c)
 		}
 	}
