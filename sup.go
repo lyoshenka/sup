@@ -141,15 +141,17 @@ func pingSite(c *cli.Context) {
 	req.Close = true
 	req.Header.Set("User-Agent", "TS Simple Uptime Checker")
 
+	isError := false
+
 	resp, err := client.Do(req)
 	if err != nil && err != io.EOF {
-		fmt.Printf("%+v\n", err)
-		fmt.Printf("%+v\n", resp)
-		panic(err)
+		fmt.Printf("err: %+v\n", err)
+		fmt.Printf("resp: %+v\n", resp)
+		isError = true
 	}
 	defer resp.Body.Close()
 
-	if simulateDown || resp.StatusCode != http.StatusOK {
+	if simulateDown || isError || resp.StatusCode != http.StatusOK {
 		log.Println("Site is down. Status is ", resp.StatusCode)
 		status.NumErrors += 1
 		if status.NumErrors >= 5 {
