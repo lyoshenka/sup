@@ -12,6 +12,14 @@
 			"Rev": "142e6cd241a4dfbf7f07a018f1f8225180018da4"
 		},
 		{
+			"ImportPath": "github.com/garyburd/redigo/internal",
+			"Rev": "9d4db5d1dbeff473d50e1bb82f5405c8cca0f0ac"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/redis",
+			"Rev": "9d4db5d1dbeff473d50e1bb82f5405c8cca0f0ac"
+		},
+		{
 			"ImportPath": "github.com/sfreiberg/gotwilio",
 			"Rev": "b7230c284bd0c1614c94d00b9998c49f9a2737d8"
 		},

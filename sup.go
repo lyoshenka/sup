@@ -1,20 +1,25 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/topscore/sup/Godeps/_workspace/src/github.com/andybons/hipchat"
 	"github.com/topscore/sup/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/topscore/sup/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/topscore/sup/Godeps/_workspace/src/github.com/sfreiberg/gotwilio"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
-var config ConfigType
+var redisURL string
+var config configType
 var verbose bool
 
 func check(e error) {
@@ -23,7 +28,7 @@ func check(e error) {
 	}
 }
 
-type ConfigType struct {
+type configType struct {
 	TwilioSID        string
 	TwilioAuthToken  string
 	URL              string
@@ -33,11 +38,29 @@ type ConfigType struct {
 	HipchatRoom      string
 }
 
-type StatusType struct {
+type statusType struct {
 	Disabled   bool
 	LastStatus int
 	LastRunAt  string
 	NumErrors  int
+}
+
+func getConfigKey(c *cli.Context) ([]byte, error) {
+	key := c.GlobalString("key")
+	if key != "" {
+		return []byte(key), nil
+	}
+
+	keyFile := c.GlobalString("keyfile")
+	if keyFile != "" {
+		key, err := ioutil.ReadFile(keyFile)
+		if err != nil {
+			return nil, err
+		}
+		return bytes.TrimSpace(key), nil
+	}
+
+	return nil, nil
 }
 
 func hipchatMessage(message string) {
@@ -59,36 +82,86 @@ func hipchatMessage(message string) {
 	check(err)
 }
 
-func loadConfig(configFile, key string) ConfigType {
+func loadConfig(configFile string, key []byte) configType {
 	file, err := ioutil.ReadFile(configFile)
 	check(err)
 
-	if len(key) > 0 {
-		file, err = decrypt([]byte(key), file)
+	if key != nil && len(key) > 0 {
+		file, err = decrypt(key, file)
 		check(err)
 	}
 
-	var conf ConfigType
+	var conf configType
 	json.Unmarshal(file, &conf)
 	return conf
 }
 
-func loadStatus(statusFile string) StatusType {
-	var status StatusType
-
-	if _, err := os.Stat(statusFile); err == nil {
-		file, err := ioutil.ReadFile(statusFile)
-		check(err)
-		json.Unmarshal(file, &status)
+func getRedis() (redis.Conn, error) {
+	urlParts, err := url.Parse(redisURL)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing Redis url: %s", err)
 	}
+
+	auth := ""
+	if urlParts.User != nil {
+		if password, ok := urlParts.User.Password(); ok {
+			auth = password
+		}
+	}
+
+	c, err := redis.Dial("tcp", urlParts.Host)
+	if err != nil {
+		return nil, fmt.Errorf("error connecting to Redis: %s", err)
+	}
+
+	if len(auth) > 0 {
+		_, err = c.Do("AUTH", auth)
+		if err != nil {
+			return nil, fmt.Errorf("error authenticating with Redis: %s", err)
+		}
+	}
+
+	if len(urlParts.Path) > 1 {
+		db := strings.TrimPrefix(urlParts.Path, "/")
+		_, err = c.Do("SELECT", db)
+		if err != nil {
+			return nil, fmt.Errorf("error selecting Redis db: %s", err)
+		}
+	}
+
+	return c, nil
+}
+
+func loadStatus() statusType {
+	var status statusType
+
+	c, err := getRedis()
+	check(err)
+	defer c.Close()
+
+	statusData, err := redis.Bytes(c.Do("GET", "sup:status"))
+	if err != nil {
+		if err.Error() == "redigo: nil returned" {
+			statusData = []byte("")
+		} else {
+			check(err)
+		}
+	}
+
+	json.Unmarshal(statusData, &status)
 
 	return status
 }
 
-func saveStatus(statusFile string, status StatusType) {
+func saveStatus(status statusType) {
 	json, err := json.Marshal(status)
 	check(err)
-	err = ioutil.WriteFile(statusFile, json, 0644)
+
+	c, err := getRedis()
+	check(err)
+	defer c.Close()
+
+	_, err = c.Do("SET", "sup:status", json)
 	check(err)
 }
 
@@ -109,10 +182,9 @@ func callDevTeam() {
 }
 
 func pingSite(c *cli.Context) {
-	statusFile := c.GlobalString("status")
 	simulateDown := c.GlobalBool("down")
 
-	status := loadStatus(statusFile)
+	status := loadStatus()
 
 	if status.Disabled {
 		log.Println("Disabled")
@@ -170,7 +242,7 @@ func pingSite(c *cli.Context) {
 
 	status.LastStatus = statusCode
 	status.LastRunAt = time.Now().Format(time.RFC3339)
-	saveStatus(statusFile, status)
+	saveStatus(status)
 }
 
 func main() {
@@ -186,12 +258,6 @@ func main() {
 			Usage: "file where config values are read from",
 		},
 		cli.StringFlag{
-			Name:   "status",
-			Value:  "./status.json",
-			Usage:  "file where status information is written",
-			EnvVar: "STATUS_FILE",
-		},
-		cli.StringFlag{
 			Name:  "logfile",
 			Value: "",
 			Usage: "log messages go here. if not present, log to stdout",
@@ -201,6 +267,17 @@ func main() {
 			Value:  "",
 			Usage:  "key to lock/unlock config file",
 			EnvVar: "CONFIG_KEY",
+		},
+		cli.StringFlag{
+			Name:   "redis_url",
+			Value:  "redis://localhost:6379",
+			Usage:  "redis url",
+			EnvVar: "REDIS_URL",
+		},
+		cli.StringFlag{
+			Name:  "keyfile",
+			Value: "",
+			Usage: "file that contains key to lock/unlock config file",
 		},
 		cli.BoolFlag{
 			Name:  "down",
@@ -226,45 +303,40 @@ func main() {
 			Name:  "reset",
 			Usage: "reset status file",
 			Action: func(c *cli.Context) {
-				saveStatus(c.GlobalString("status"), *new(StatusType))
+				saveStatus(*new(statusType))
 			},
 		},
 		{
 			Name:  "enable",
 			Usage: "undisable pinger",
 			Action: func(c *cli.Context) {
-				statusFile := c.GlobalString("status")
-				status := loadStatus(statusFile)
+				status := loadStatus()
 				status.Disabled = false
-				saveStatus(statusFile, status)
+				saveStatus(status)
 			},
 		},
 		{
 			Name:  "disable",
 			Usage: "disable pinger",
 			Action: func(c *cli.Context) {
-				statusFile := c.GlobalString("status")
-				status := loadStatus(statusFile)
+				status := loadStatus()
 				status.Disabled = true
-				saveStatus(statusFile, status)
+				saveStatus(status)
 			},
 		},
 		{
 			Name:  "encrypt",
 			Usage: "encrypt config file",
 			Action: func(c *cli.Context) {
-				key := c.GlobalString("key")
-				if key == "" {
+				key, err := getConfigKey(c)
+				check(err)
+				if key == nil {
 					log.Println("key required to encrypt config")
 					return
 				}
 
 				plaintext, err := ioutil.ReadFile(c.GlobalString("config"))
 				check(err)
-
-				// It's important to remember that ciphertexts must be authenticated
-				// (i.e. by using crypto/hmac) as well as being encrypted in order to
-				// be secure.
 
 				ciphertext, err := encrypt([]byte(key), plaintext)
 				check(err)
@@ -277,9 +349,10 @@ func main() {
 			Name:  "decrypt",
 			Usage: "decrypt config file",
 			Action: func(c *cli.Context) {
-				key := c.GlobalString("key")
-				if key == "" {
-					log.Println("key required to encrypt config")
+				key, err := getConfigKey(c)
+				check(err)
+				if key == nil {
+					log.Println("key required to decrypt config")
 					return
 				}
 
@@ -288,10 +361,6 @@ func main() {
 
 				plaintext, err := decrypt([]byte(key), ciphertext)
 				check(err)
-
-				// Its critical to note that ciphertexts must be authenticated (i.e. by
-				// using crypto/hmac) before being decrypted in order to avoid creating
-				// a padding oracle.
 
 				err = ioutil.WriteFile(c.GlobalString("config"), plaintext, 0644)
 				check(err)
@@ -307,9 +376,13 @@ func main() {
 			log.SetOutput(logfile)
 		}
 
+		redisURL = c.GlobalString("redis_url")
 		verbose = c.GlobalBool("verbose")
 
-		config = loadConfig(c.GlobalString("config"), c.GlobalString("key"))
+		key, err := getConfigKey(c)
+		check(err)
+
+		config = loadConfig(c.GlobalString("config"), key)
 
 		if config.URL == "" {
 			fmt.Println("No URL in config file. Either you forgot to set one, or you need to provide a decryption key.")
