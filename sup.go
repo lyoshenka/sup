@@ -94,8 +94,8 @@ func saveStatus(statusFile string, status StatusType) {
 
 func callDevTeam() {
 	twilio := gotwilio.NewTwilioClient(config.TwilioSID, config.TwilioAuthToken)
-	messageUrl := "http://twimlets.com/message?Message%5B0%5D=SITE%20IS%20DOWN!"
-	callbackParams := gotwilio.NewCallbackParameters(messageUrl)
+	messageURL := "http://twimlets.com/message?Message%5B0%5D=SITE%20IS%20DOWN!"
+	callbackParams := gotwilio.NewCallbackParameters(messageURL)
 
 	for _, num := range config.Phones {
 		fmt.Printf("!!! Calling %s\n", num)
@@ -142,6 +142,7 @@ func pingSite(c *cli.Context) {
 	req.Header.Set("User-Agent", "TS Simple Uptime Checker")
 
 	isError := false
+	statusCode := 0
 
 	resp, err := client.Do(req)
 	if err != nil && err != io.EOF {
@@ -149,11 +150,14 @@ func pingSite(c *cli.Context) {
 		fmt.Printf("resp: %+v\n", resp)
 		isError = true
 	}
-	defer resp.Body.Close()
+	if resp != nil {
+		defer resp.Body.Close()
+		statusCode = resp.StatusCode
+	}
 
-	if simulateDown || isError || resp.StatusCode != http.StatusOK {
-		log.Println("Site is down. Status is ", resp.StatusCode)
-		status.NumErrors += 1
+	if simulateDown || isError || statusCode != http.StatusOK {
+		log.Println("Site is down. Status is ", statusCode)
+		status.NumErrors++
 		if status.NumErrors >= 5 {
 			callDevTeam()
 		}
@@ -164,7 +168,7 @@ func pingSite(c *cli.Context) {
 		status.NumErrors = 0
 	}
 
-	status.LastStatus = resp.StatusCode
+	status.LastStatus = statusCode
 	status.LastRunAt = time.Now().Format(time.RFC3339)
 	saveStatus(statusFile, status)
 }
