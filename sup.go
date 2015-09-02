@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -203,7 +204,16 @@ func pingSite(c *cli.Context) {
 		}
 	}()
 
-	client := &http.Client{}
+	timeout := time.Duration(20 * time.Second)
+	transport := http.Transport{
+		Dial: func(network, addr string) (net.Conn, error) {
+			return net.DialTimeout(network, addr, timeout)
+		},
+	}
+	client := &http.Client{
+		Timeout:   timeout,
+		Transport: &transport,
+	}
 
 	req, err := http.NewRequest("GET", config.URL, nil)
 	if err != nil {
