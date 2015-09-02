@@ -11,7 +11,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -204,17 +203,8 @@ func pingSite(c *cli.Context) {
 		}
 	}()
 
-	// http://stackoverflow.com/questions/16895294/how-to-set-timeout-for-http-get-requests-in-golang
-	timeout := time.Duration(20 * time.Second)
-	transport := http.Transport{
-		ResponseHeaderTimeout: timeout,
-		Dial: func(network, addr string) (net.Conn, error) {
-			return net.DialTimeout(network, addr, timeout)
-		},
-	}
 	client := &http.Client{
-		Timeout:   timeout,
-		Transport: &transport,
+		Timeout: time.Duration(20 * time.Second),
 	}
 
 	req, err := http.NewRequest("GET", config.URL, nil)
