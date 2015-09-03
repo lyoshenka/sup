@@ -1,4 +1,4 @@
-package main
+package crypt
 
 import (
 	"bytes"
@@ -9,8 +9,9 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"fmt"
-	"github.com/topscore/sup/Godeps/_workspace/src/golang.org/x/crypto/pbkdf2"
 	"io"
+
+	"github.com/topscore/sup/Godeps/_workspace/src/golang.org/x/crypto/pbkdf2"
 )
 
 var iterations = 4096
@@ -71,7 +72,7 @@ func encodeContainer(c *container) ([]byte, error) {
 	return []byte(buffer.String()), nil
 }
 
-func encrypt(key, plaintext []byte) ([]byte, error) {
+func Encrypt(key, plaintext []byte) ([]byte, error) {
 	salt := make([]byte, saltLength)
 	if _, err := rand.Read(salt); err != nil {
 		return nil, fmt.Errorf("encrypt: %s", err)
@@ -107,7 +108,7 @@ func encrypt(key, plaintext []byte) ([]byte, error) {
 	return data, nil
 }
 
-func decrypt(key, ciphertext []byte) ([]byte, error) {
+func Decrypt(key, ciphertext []byte) ([]byte, error) {
 	if len(ciphertext) < saltLength+aes.BlockSize {
 		return nil, fmt.Errorf("decrypt: ciphertext too short")
 	}

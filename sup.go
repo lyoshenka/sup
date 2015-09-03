@@ -2,47 +2,29 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"github.com/topscore/sup/Godeps/_workspace/src/github.com/andybons/hipchat"
-	"github.com/topscore/sup/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/topscore/sup/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
-	"github.com/topscore/sup/Godeps/_workspace/src/github.com/sfreiberg/gotwilio"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
-	"strings"
+	"strconv"
 	"time"
+
+	"github.com/topscore/sup/common"
+	"github.com/topscore/sup/crypt"
+	"github.com/topscore/sup/webserver"
+
+	"github.com/topscore/sup/Godeps/_workspace/src/github.com/codegangsta/cli"
+	"github.com/topscore/sup/Godeps/_workspace/src/github.com/sfreiberg/gotwilio"
 )
 
-var redisURL string
-var config configType
 var verbose bool
 
 func check(e error) {
 	if e != nil {
 		panic(e)
 	}
-}
-
-type configType struct {
-	TwilioSID        string
-	TwilioAuthToken  string
-	URL              string
-	CallFrom         string
-	Phones           []string
-	HipchatAuthToken string
-	HipchatRoom      string
-}
-
-type statusType struct {
-	Disabled   bool
-	LastStatus int
-	LastRunAt  string
-	NumErrors  int
 }
 
 func getConfigKey(c *cli.Context) ([]byte, error) {
@@ -63,117 +45,15 @@ func getConfigKey(c *cli.Context) ([]byte, error) {
 	return nil, nil
 }
 
-func hipchatMessage(message string) {
-	if config.HipchatAuthToken == "" || config.HipchatRoom == "" {
-		return
-	}
-
-	client := hipchat.NewClient(config.HipchatAuthToken)
-
-	err := client.PostMessage(hipchat.MessageRequest{
-		RoomId:        config.HipchatRoom,
-		From:          "SUP",
-		Message:       message,
-		Color:         hipchat.ColorRed,
-		MessageFormat: hipchat.FormatText,
-		Notify:        true,
-	})
-
-	check(err)
-}
-
-func loadConfig(configFile string, key []byte) configType {
-	file, err := ioutil.ReadFile(configFile)
-	check(err)
-
-	if key != nil && len(key) > 0 {
-		file, err = decrypt(key, file)
-		check(err)
-	}
-
-	var conf configType
-	json.Unmarshal(file, &conf)
-	return conf
-}
-
-func getRedis() (redis.Conn, error) {
-	urlParts, err := url.Parse(redisURL)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing Redis url: %s", err)
-	}
-
-	auth := ""
-	if urlParts.User != nil {
-		if password, ok := urlParts.User.Password(); ok {
-			auth = password
-		}
-	}
-
-	c, err := redis.Dial("tcp", urlParts.Host)
-	if err != nil {
-		return nil, fmt.Errorf("error connecting to Redis: %s", err)
-	}
-
-	if len(auth) > 0 {
-		_, err = c.Do("AUTH", auth)
-		if err != nil {
-			return nil, fmt.Errorf("error authenticating with Redis: %s", err)
-		}
-	}
-
-	if len(urlParts.Path) > 1 {
-		db := strings.TrimPrefix(urlParts.Path, "/")
-		_, err = c.Do("SELECT", db)
-		if err != nil {
-			return nil, fmt.Errorf("error selecting Redis db: %s", err)
-		}
-	}
-
-	return c, nil
-}
-
-func loadStatus() statusType {
-	var status statusType
-
-	c, err := getRedis()
-	check(err)
-	defer c.Close()
-
-	statusData, err := redis.Bytes(c.Do("GET", "sup:status"))
-	if err != nil {
-		if err.Error() == "redigo: nil returned" {
-			statusData = []byte("")
-		} else {
-			check(err)
-		}
-	}
-
-	json.Unmarshal(statusData, &status)
-
-	return status
-}
-
-func saveStatus(status statusType) {
-	json, err := json.Marshal(status)
-	check(err)
-
-	c, err := getRedis()
-	check(err)
-	defer c.Close()
-
-	_, err = c.Do("SET", "sup:status", json)
-	check(err)
-}
-
 func callDevTeam() {
-	twilio := gotwilio.NewTwilioClient(config.TwilioSID, config.TwilioAuthToken)
+	twilio := gotwilio.NewTwilioClient(common.Config.TwilioSID, common.Config.TwilioAuthToken)
 	messageURL := "http://twimlets.com/message?Message%5B0%5D=SITE%20IS%20DOWN!"
 	callbackParams := gotwilio.NewCallbackParameters(messageURL)
 
-	for _, num := range config.Phones {
+	for _, num := range common.Config.Phones {
 		fmt.Printf("!!! Calling %s\n", num)
 
-		_, tException, err := twilio.CallWithUrlCallbacks(config.CallFrom, num, callbackParams)
+		_, tException, err := twilio.CallWithUrlCallbacks(common.Config.CallFrom, num, callbackParams)
 		if tException != nil {
 			panic(fmt.Sprintf("Twilio error: %+v\n", tException))
 		}
@@ -184,7 +64,7 @@ func callDevTeam() {
 func pingSite(c *cli.Context) {
 	simulateDown := c.GlobalBool("down")
 
-	status := loadStatus()
+	status := common.GetStatus()
 
 	if status.Disabled {
 		log.Println("Disabled")
@@ -195,9 +75,9 @@ func pingSite(c *cli.Context) {
 		if e := recover(); e != nil {
 			switch x := e.(type) {
 			case error:
-				hipchatMessage(x.Error())
+				common.HipchatMessage(x.Error())
 			default:
-				hipchatMessage(fmt.Sprintf("%v", x))
+				common.HipchatMessage(fmt.Sprintf("%v", x))
 			}
 			panic(e)
 		}
@@ -207,7 +87,7 @@ func pingSite(c *cli.Context) {
 		Timeout: time.Duration(20 * time.Second),
 	}
 
-	req, err := http.NewRequest("GET", config.URL, nil)
+	req, err := http.NewRequest("GET", common.Config.URL, nil)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -244,7 +124,7 @@ func pingSite(c *cli.Context) {
 
 	status.LastStatus = statusCode
 	status.LastRunAt = time.Now().Format(time.RFC3339)
-	saveStatus(status)
+	common.SetStatus(status)
 }
 
 func main() {
@@ -271,16 +151,17 @@ func main() {
 			EnvVar: "CONFIG_KEY",
 		},
 		cli.StringFlag{
+			Name:  "keyfile",
+			Value: "",
+			Usage: "file that contains key to lock/unlock config file",
+		},
+		cli.StringFlag{
 			Name:   "redis_url",
 			Value:  "redis://localhost:6379",
 			Usage:  "redis url",
 			EnvVar: "REDIS_URL",
 		},
-		cli.StringFlag{
-			Name:  "keyfile",
-			Value: "",
-			Usage: "file that contains key to lock/unlock config file",
-		},
+
 		cli.BoolFlag{
 			Name:  "down",
 			Usage: "simulate the site being down",
@@ -289,14 +170,26 @@ func main() {
 			Name:  "verbose",
 			Usage: "verbose output",
 		},
-		cli.BoolFlag{
-			Name:  "forever",
-			Usage: "run ping on repeat",
-		},
 		cli.IntFlag{
 			Name:  "pingFreq",
 			Usage: "with --forever, how often to ping the site (in seconds)",
 			Value: 60,
+		},
+
+		cli.IntFlag{
+			Name:   "port",
+			Usage:  "web server will listen on this port",
+			EnvVar: "PORT",
+			Value:  8000,
+		},
+
+		cli.BoolFlag{
+			Name:  "forever",
+			Usage: "run ping on repeat",
+		},
+		cli.BoolFlag{
+			Name:  "web",
+			Usage: "run web server",
 		},
 	}
 
@@ -305,25 +198,25 @@ func main() {
 			Name:  "reset",
 			Usage: "reset status file",
 			Action: func(c *cli.Context) {
-				saveStatus(*new(statusType))
+				common.SetStatus(*new(common.StatusType))
 			},
 		},
 		{
 			Name:  "enable",
 			Usage: "undisable pinger",
 			Action: func(c *cli.Context) {
-				status := loadStatus()
+				status := common.GetStatus()
 				status.Disabled = false
-				saveStatus(status)
+				common.SetStatus(status)
 			},
 		},
 		{
 			Name:  "disable",
 			Usage: "disable pinger",
 			Action: func(c *cli.Context) {
-				status := loadStatus()
+				status := common.GetStatus()
 				status.Disabled = true
-				saveStatus(status)
+				common.SetStatus(status)
 			},
 		},
 		{
@@ -340,7 +233,7 @@ func main() {
 				plaintext, err := ioutil.ReadFile(c.GlobalString("config"))
 				check(err)
 
-				ciphertext, err := encrypt([]byte(key), plaintext)
+				ciphertext, err := crypt.Encrypt([]byte(key), plaintext)
 				check(err)
 
 				err = ioutil.WriteFile(c.GlobalString("config"), ciphertext, 0644)
@@ -361,7 +254,7 @@ func main() {
 				ciphertext, err := ioutil.ReadFile(c.GlobalString("config"))
 				check(err)
 
-				plaintext, err := decrypt([]byte(key), ciphertext)
+				plaintext, err := crypt.Decrypt([]byte(key), ciphertext)
 				check(err)
 
 				err = ioutil.WriteFile(c.GlobalString("config"), plaintext, 0644)
@@ -378,15 +271,15 @@ func main() {
 			log.SetOutput(logfile)
 		}
 
-		redisURL = c.GlobalString("redis_url")
+		common.RedisURL = c.GlobalString("redis_url")
 		verbose = c.GlobalBool("verbose")
 
 		key, err := getConfigKey(c)
 		check(err)
 
-		config = loadConfig(c.GlobalString("config"), key)
+		common.Config = common.LoadConfig(c.GlobalString("config"), key)
 
-		if config.URL == "" {
+		if common.Config.URL == "" {
 			fmt.Println("No URL in config file. Either you forgot to set one, or you need to provide a decryption key.")
 			os.Exit(1)
 		}
@@ -395,15 +288,20 @@ func main() {
 			log.Println("We're going to pretend the site is down, even if it's not")
 		}
 
-		if c.GlobalBool("forever") {
-			fmt.Printf("Pinging %s every %d seconds\n", config.URL, c.GlobalInt("pingFreq"))
+		if c.GlobalBool("web") {
+			err = webserver.StartWebServer(":" + strconv.Itoa(c.GlobalInt("port")))
+			if err != nil {
+				log.Fatal(err)
+			}
+		} else if c.GlobalBool("forever") {
+			fmt.Printf("Pinging %s every %d seconds\n", common.Config.URL, c.GlobalInt("pingFreq"))
 			for {
 				pingSite(c)
 				time.Sleep(time.Duration(c.GlobalInt("pingFreq")) * time.Second)
 			}
 		} else {
-			// config.URL = "http://httpstat.us/504"
-			fmt.Printf("Pinging %s\n", config.URL)
+			// common.Config.URL = "http://httpstat.us/504"
+			fmt.Printf("Pinging %s\n", common.Config.URL)
 			pingSite(c)
 		}
 	}
