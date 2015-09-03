@@ -31,9 +31,14 @@ func statusRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 	encoder.Encode(status)
 }
 
+func robotsRoute(c web.C, w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintln(w, "User-agent: *\nDisallow: /")
+}
+
 func StartWebServer(bind string) error {
 	goji.Get("/", homeRoute)
 	goji.Get("/status", statusRoute)
+	goji.Get("/robots.txt", robotsRoute)
 
 	listener, err := net.Listen("tcp", bind)
 	if err != nil {
