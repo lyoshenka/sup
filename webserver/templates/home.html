@@ -1,0 +1,13 @@
+{{ define "home" }}
+	{{template "top" .}}
+
+	<h3>sup is {{ if .enabled }} RUNNING {{ else }} DISABLED {{ end }}</h3>
+
+	<a href="/toggleEnabled">toggle enabled</a>
+
+	<p>Last status: {{ .lastStatus }}</p>
+
+	<p>Last ping time: {{.lastPingTime }}</p>
+
+	{{template "bottom" .}}
+{{ end }}
