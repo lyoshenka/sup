@@ -6,9 +6,11 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/topscore/sup/common"
 
+	"github.com/topscore/sup/Godeps/_workspace/src/github.com/goji/httpauth"
 	"github.com/topscore/sup/Godeps/_workspace/src/github.com/zenazn/goji"
 	"github.com/topscore/sup/Godeps/_workspace/src/github.com/zenazn/goji/web"
 )
@@ -35,7 +37,12 @@ func robotsRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "User-agent: *\nDisallow: /")
 }
 
-func StartWebServer(bind string) error {
+func StartWebServer(bind, auth string) error {
+	if auth != "" {
+		authParts := strings.Split(auth, ":")
+		goji.Use(httpauth.SimpleBasicAuth(authParts[0], authParts[1]))
+	}
+
 	goji.Get("/", homeRoute)
 	goji.Get("/status", statusRoute)
 	goji.Get("/robots.txt", robotsRoute)

@@ -182,6 +182,12 @@ func main() {
 			EnvVar: "PORT",
 			Value:  8000,
 		},
+		cli.StringFlag{
+			Name:   "web_auth",
+			Value:  "",
+			Usage:  "basic http auth for web server. format: username:password",
+			EnvVar: "WEB_AUTH",
+		},
 
 		cli.BoolFlag{
 			Name:  "forever",
@@ -289,7 +295,7 @@ func main() {
 		}
 
 		if c.GlobalBool("web") {
-			err = webserver.StartWebServer(":" + strconv.Itoa(c.GlobalInt("port")))
+			err = webserver.StartWebServer(":"+strconv.Itoa(c.GlobalInt("port")), c.GlobalString("web_auth"))
 			if err != nil {
 				log.Fatal(err)
 			}
