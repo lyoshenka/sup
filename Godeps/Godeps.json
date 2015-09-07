@@ -1,10 +1,17 @@
 {
 	"ImportPath": "github.com/topscore/sup",
-	"GoVersion": "go1.4",
+	"GoVersion": "go1.5",
+	"Packages": [
+		"./..."
+	],
 	"Deps": [
 		{
 			"ImportPath": "github.com/andybons/hipchat",
 			"Rev": "3d3573e9181b509e5f635de7a84377d04fe69aab"
+		},
+		{
+			"ImportPath": "github.com/arschles/assert",
+			"Rev": "6882f85ccdc7c1822b146d1a6b0c2c48f91b5140"
 		},
 		{
 			"ImportPath": "github.com/codegangsta/cli",
@@ -13,11 +20,23 @@
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/internal",
-			"Rev": "9d4db5d1dbeff473d50e1bb82f5405c8cca0f0ac"
+			"Rev": "d8dbe4d94f15fe89232e0402c6e8a0ddf21af3ab"
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/redis",
-			"Rev": "9d4db5d1dbeff473d50e1bb82f5405c8cca0f0ac"
+			"Rev": "d8dbe4d94f15fe89232e0402c6e8a0ddf21af3ab"
+		},
+		{
+			"ImportPath": "github.com/goji/httpauth",
+			"Rev": "c1b2bcd8769bd15cc56751223fd4b9f45ca987ca"
+		},
+		{
+			"ImportPath": "github.com/goji/param",
+			"Rev": "da86c81e3e3c23b1948bc7a003d381250a032aa7"
+		},
+		{
+			"ImportPath": "github.com/lyoshenka/go-bindata-html-template",
+			"Rev": "8704b7618b603694cce9def2bc53971b4b1d528d"
 		},
 		{
 			"ImportPath": "github.com/sfreiberg/gotwilio",
@@ -30,7 +49,7 @@
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/pbkdf2",
-			"Rev": "81bf7719a6b7ce9b665598222362b50122dfc13b"
+			"Rev": "aedad9a179ec1ea11b7064c57cbc6dc30d7724ec"
 		}
 	]
 }

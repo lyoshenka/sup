@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/topscore/sup/Godeps/_workspace/src/golang.org/x/crypto/pbkdf2"
+	"golang.org/x/crypto/pbkdf2"
 )
 
 var iterations = 4096

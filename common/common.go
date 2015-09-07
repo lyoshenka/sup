@@ -9,8 +9,8 @@ import (
 
 	"github.com/topscore/sup/crypt"
 
-	"github.com/topscore/sup/Godeps/_workspace/src/github.com/andybons/hipchat"
-	"github.com/topscore/sup/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
+	"github.com/andybons/hipchat"
+	"github.com/garyburd/redigo/redis"
 )
 
 var RedisURL string

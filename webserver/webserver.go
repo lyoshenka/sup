@@ -16,9 +16,9 @@ import (
 
 	"github.com/topscore/sup/common"
 
-	"github.com/topscore/sup/Godeps/_workspace/src/github.com/goji/httpauth"
-	"github.com/topscore/sup/Godeps/_workspace/src/github.com/zenazn/goji"
-	"github.com/topscore/sup/Godeps/_workspace/src/github.com/zenazn/goji/web"
+	"github.com/goji/httpauth"
+	"github.com/zenazn/goji"
+	"github.com/zenazn/goji/web"
 )
 
 var templates *template.Template

@@ -15,8 +15,8 @@ import (
 	"github.com/topscore/sup/crypt"
 	"github.com/topscore/sup/webserver"
 
-	"github.com/topscore/sup/Godeps/_workspace/src/github.com/codegangsta/cli"
-	"github.com/topscore/sup/Godeps/_workspace/src/github.com/sfreiberg/gotwilio"
+	"github.com/codegangsta/cli"
+	"github.com/sfreiberg/gotwilio"
 )
 
 var verbose bool
