@@ -4,17 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/topscore/sup/common"
+
+	"github.com/lyoshenka/go-bindata-html-template"
 
 	"github.com/goji/httpauth"
 	"github.com/zenazn/goji"
@@ -24,25 +22,11 @@ import (
 var templates *template.Template
 
 func loadTemplates() error {
-	var tmpl []string
-
-	_, filename, _, _ := runtime.Caller(1)
-
-	fn := func(path string, f os.FileInfo, err error) error {
-		if f.IsDir() != true && strings.HasSuffix(f.Name(), ".html") {
-			tmpl = append(tmpl, path)
-		}
-		return nil
+	t, err := template.New("mytmpl", Asset).ParseFiles(AssetNames()...)
+	if err == nil {
+		templates = t
 	}
-
-	err := filepath.Walk(filepath.Dir(filename)+"/templates", fn)
-
-	if err != nil {
-		return err
-	}
-
-	templates = template.Must(template.ParseFiles(tmpl...))
-	return nil
+	return err
 }
 
 func getTemplate(name string, data interface{}) string {
