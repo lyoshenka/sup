@@ -1,5 +1,7 @@
 package webserver
 
+//go:generate go-bindata -pkg $GOPACKAGE -o static.go templates/
+
 import (
 	"bytes"
 	"encoding/json"
