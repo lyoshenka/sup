@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/topscore/sup/crypt"
 
@@ -35,7 +36,7 @@ type ConfigType struct {
 type StatusType struct {
 	Disabled   bool
 	LastStatus int
-	LastRunAt  string
+	LastRunAt  time.Time
 	NumErrors  int
 }
 

@@ -9,7 +9,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/topscore/sup/common"
@@ -40,9 +39,10 @@ func getTemplate(name string, data interface{}) string {
 func homeRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 	status := common.GetStatus()
 	templateArgs := map[string]interface{}{
+		"url":          common.Config.URL,
 		"enabled":      !status.Disabled,
-		"lastPingTime": status.LastRunAt,
-		"lastStatus":   strconv.Itoa(status.LastStatus),
+		"lastPingTime": status.LastRunAt.Format("2006-01-02 15:04:05 MST"),
+		"lastStatus":   status.LastStatus,
 	}
 	fmt.Fprintln(w, getTemplate("home", templateArgs))
 }

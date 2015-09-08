@@ -123,7 +123,7 @@ func pingSite(c *cli.Context) {
 	}
 
 	status.LastStatus = statusCode
-	status.LastRunAt = time.Now().Format(time.RFC3339)
+	status.LastRunAt = time.Now()
 	common.SetStatus(status)
 }
 

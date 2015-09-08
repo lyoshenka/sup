@@ -1,13 +1,15 @@
 {{ define "home" }}
 	{{template "top" .}}
 
-	<h3>sup is {{ if .enabled }} RUNNING {{ else }} DISABLED {{ end }}</h3>
+	{{ if not .enabled }} <h3 class="error">DISABLED</h3> {{ end }}
 
-	<a href="/toggleEnabled">toggle enabled</a>
+	<p>{{ .url }}</p>
 
-	<p>Last status: {{ .lastStatus }}</p>
+	<p>Last status: <span class="{{ if eq .lastStatus 200 }} success {{ else }} error {{ end }}">{{ .lastStatus }}</span></p>
 
-	<p>Last ping time: {{.lastPingTime }}</p>
+	<p>Last ping time: {{ .lastPingTime | }}</p>
+
+	<a href="/toggleEnabled">{{ if .enabled }} disable {{ else }} enable {{ end }}</a>
 
 	{{template "bottom" .}}
 {{ end }}
