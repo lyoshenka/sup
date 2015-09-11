@@ -9,7 +9,9 @@
 
 	<p>Last ping time: {{ .lastPingTime | }}</p>
 
-	<a href="/toggleEnabled">{{ if .enabled }} disable {{ else }} enable {{ end }}</a>
+	<p><a href="/toggleEnabled">{{ if .enabled }} disable {{ else }} enable {{ end }}</a></p>
+
+	<p><a href="/status">JSON status</a></p>
 
 	{{template "bottom" .}}
 {{ end }}
