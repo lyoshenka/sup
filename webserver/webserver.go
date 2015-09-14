@@ -43,6 +43,7 @@ func homeRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 		"enabled":      !status.Disabled,
 		"lastPingTime": status.LastRunAt.Format("2006-01-02 15:04:05 MST"),
 		"lastStatus":   status.LastStatus,
+		"numContacts":  len(common.Config.Phones),
 	}
 	fmt.Fprintln(w, getTemplate("home", templateArgs))
 }
