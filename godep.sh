@@ -1,0 +1,3 @@
+#!/bin/bash
+
+GO15VENDOREXPERIMENT=1 godep save ./...

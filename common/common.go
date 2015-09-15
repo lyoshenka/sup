@@ -24,13 +24,13 @@ func check(e error) {
 }
 
 type ConfigType struct {
-	TwilioSID        string
-	TwilioAuthToken  string
-	URL              string
-	CallFrom         string
-	Phones           []string
-	HipchatAuthToken string
-	HipchatRoom      string
+	TwilioSID        string   `gforms:"twilio_sid"`
+	TwilioAuthToken  string   `gforms:"twilio_auth_token"`
+	URL              string   `gforms:"url"`
+	CallFrom         string   `gforms:"call_from"`
+	Phones           []string `gforms:"phones"`
+	HipchatAuthToken string   `gforms:"hipchat_auth_token"`
+	HipchatRoom      string   `gforms:"hipchat_room"`
 }
 
 type StatusType struct {

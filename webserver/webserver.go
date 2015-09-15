@@ -14,7 +14,9 @@ import (
 	"github.com/topscore/sup/common"
 
 	"github.com/lyoshenka/go-bindata-html-template"
+	builtinTemplate "html/template"
 
+	"github.com/bluele/gforms"
 	"github.com/goji/httpauth"
 	"github.com/zenazn/goji"
 	"github.com/zenazn/goji/web"
@@ -23,7 +25,12 @@ import (
 var templates *template.Template
 
 func loadTemplates() error {
-	t, err := template.New("mytmpl", Asset).ParseFiles(AssetNames()...)
+	t, err := template.New("mytmpl", Asset).Funcs(template.FuncMap{
+		"safehtml": func(value interface{}) builtinTemplate.HTML {
+			return builtinTemplate.HTML(fmt.Sprint(value))
+		},
+	}).ParseFiles(AssetNames()...)
+
 	if err == nil {
 		templates = t
 	}
@@ -46,6 +53,28 @@ func homeRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 		"numContacts":  len(common.Config.Phones),
 	}
 	fmt.Fprintln(w, getTemplate("home", templateArgs))
+}
+
+func configRoute(c web.C, w http.ResponseWriter, r *http.Request) {
+
+	configForm := gforms.DefineModelForm(common.Config, nil)
+
+	form := configForm(r)
+
+	// if r.Method == "POST" {
+
+	// 	fmt.Printf("%+v\n", form)
+	// 	http.Redirect(w, r, "/config", http.StatusFound)
+	// }
+
+	// status := common.GetStatus()
+	// encoder := json.NewEncoder(w)
+	// encoder.Encode(status)
+
+	templateArgs := map[string]interface{}{
+		"form": form,
+	}
+	fmt.Fprintln(w, getTemplate("config", templateArgs))
 }
 
 func statusRoute(c web.C, w http.ResponseWriter, r *http.Request) {
@@ -81,6 +110,7 @@ func StartWebServer(bind, auth string) error {
 	goji.Get("/status", statusRoute)
 	goji.Get("/robots.txt", robotsRoute)
 	goji.Get("/toggleEnabled", toggleEnabledRoute)
+	goji.Handle("/config", configRoute)
 
 	listener, err := net.Listen("tcp", bind)
 	if err != nil {

@@ -1,0 +1,17 @@
+{{ define "config" }}
+	{{template "top" .}}
+
+	<h3>Config</h3>
+
+	<form action="/config" method="POST">
+
+		{{ range $i, $field := .form.Fields }}
+		  <label>{{ $field.GetName }}: </label>{{ $field.Html | safehtml }}
+		  {{ range $ei, $err := $field.Errors }}<label class="error">{{ $err }}</label>{{ end }}<br />
+		{{end}}
+
+  		<input type="submit" value="Save">
+  	</form>
+
+	{{template "bottom" .}}
+{{ end }}

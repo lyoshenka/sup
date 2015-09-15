@@ -14,6 +14,10 @@
 			"Rev": "6882f85ccdc7c1822b146d1a6b0c2c48f91b5140"
 		},
 		{
+			"ImportPath": "github.com/bluele/gforms",
+			"Rev": "da879f29e0ad3e22e5d52bb1efce98787fd082c6"
+		},
+		{
 			"ImportPath": "github.com/codegangsta/cli",
 			"Comment": "1.2.0-139-g142e6cd",
 			"Rev": "142e6cd241a4dfbf7f07a018f1f8225180018da4"
@@ -36,7 +40,7 @@
 		},
 		{
 			"ImportPath": "github.com/lyoshenka/go-bindata-html-template",
-			"Rev": "8704b7618b603694cce9def2bc53971b4b1d528d"
+			"Rev": "3fac60385a3bff517310696546269891fbcd879e"
 		},
 		{
 			"ImportPath": "github.com/sfreiberg/gotwilio",
