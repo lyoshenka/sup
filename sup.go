@@ -67,7 +67,6 @@ func pingSite(c *cli.Context) {
 	status := common.GetStatus()
 
 	if status.Disabled {
-		log.Println("Disabled")
 		return
 	}
 
