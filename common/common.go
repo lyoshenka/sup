@@ -15,7 +15,9 @@ import (
 )
 
 var RedisURL string
-var Config ConfigType
+
+var redisConfigKey = "sup:config"
+var redisStatusKey = "sup:status"
 
 func check(e error) {
 	if e != nil {
@@ -41,14 +43,15 @@ type StatusType struct {
 }
 
 func HipchatMessage(message string) {
-	if Config.HipchatAuthToken == "" || Config.HipchatRoom == "" {
+	config := GetConfig()
+	if config.HipchatAuthToken == "" || config.HipchatRoom == "" {
 		return
 	}
 
-	client := hipchat.NewClient(Config.HipchatAuthToken)
+	client := hipchat.NewClient(config.HipchatAuthToken)
 
 	err := client.PostMessage(hipchat.MessageRequest{
-		RoomId:        Config.HipchatRoom,
+		RoomId:        config.HipchatRoom,
 		From:          "SUP",
 		Message:       message,
 		Color:         hipchat.ColorRed,
@@ -56,6 +59,38 @@ func HipchatMessage(message string) {
 		Notify:        true,
 	})
 
+	check(err)
+}
+
+func GetConfig() ConfigType {
+	var conf ConfigType
+
+	c, err := getRedis()
+	check(err)
+	defer c.Close()
+
+	confData, err := redis.Bytes(c.Do("GET", redisConfigKey))
+	if err != nil {
+		if err.Error() == "redigo: nil returned" {
+			confData = []byte("")
+		} else {
+			check(err)
+		}
+	}
+
+	json.Unmarshal(confData, &conf)
+	return conf
+}
+
+func SetConfig(config ConfigType) {
+	json, err := json.Marshal(config)
+	check(err)
+
+	c, err := getRedis()
+	check(err)
+	defer c.Close()
+
+	_, err = c.Do("SET", redisConfigKey, json)
 	check(err)
 }
 
@@ -80,7 +115,7 @@ func GetStatus() StatusType {
 	check(err)
 	defer c.Close()
 
-	statusData, err := redis.Bytes(c.Do("GET", "sup:status"))
+	statusData, err := redis.Bytes(c.Do("GET", redisStatusKey))
 	if err != nil {
 		if err.Error() == "redigo: nil returned" {
 			statusData = []byte("")
@@ -102,7 +137,7 @@ func SetStatus(status StatusType) {
 	check(err)
 	defer c.Close()
 
-	_, err = c.Do("SET", "sup:status", json)
+	_, err = c.Do("SET", redisStatusKey, json)
 	check(err)
 }
 

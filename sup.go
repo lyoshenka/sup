@@ -46,14 +46,15 @@ func getConfigKey(c *cli.Context) ([]byte, error) {
 }
 
 func callDevTeam() {
-	twilio := gotwilio.NewTwilioClient(common.Config.TwilioSID, common.Config.TwilioAuthToken)
+	config := common.GetConfig()
+	twilio := gotwilio.NewTwilioClient(config.TwilioSID, config.TwilioAuthToken)
 	messageURL := "http://twimlets.com/message?Message%5B0%5D=SITE%20IS%20DOWN!"
 	callbackParams := gotwilio.NewCallbackParameters(messageURL)
 
-	for _, num := range common.Config.Phones {
+	for _, num := range config.Phones {
 		fmt.Printf("!!! Calling %s\n", num)
 
-		_, tException, err := twilio.CallWithUrlCallbacks(common.Config.CallFrom, num, callbackParams)
+		_, tException, err := twilio.CallWithUrlCallbacks(config.CallFrom, num, callbackParams)
 		if tException != nil {
 			panic(fmt.Sprintf("Twilio error: %+v\n", tException))
 		}
@@ -64,9 +65,10 @@ func callDevTeam() {
 func pingSite(c *cli.Context) {
 	simulateDown := c.GlobalBool("down")
 
+	config := common.GetConfig()
 	status := common.GetStatus()
 
-	if status.Disabled {
+	if status.Disabled || config.URL == "" {
 		return
 	}
 
@@ -86,7 +88,7 @@ func pingSite(c *cli.Context) {
 		Timeout: time.Duration(20 * time.Second),
 	}
 
-	req, err := http.NewRequest("GET", common.Config.URL, nil)
+	req, err := http.NewRequest("GET", config.URL, nil)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -282,9 +284,12 @@ func main() {
 		key, err := getConfigKey(c)
 		check(err)
 
-		common.Config = common.LoadConfig(c.GlobalString("config"), key)
+		config := common.GetConfig()
+		if config.URL == "" {
+			config = common.LoadConfig(c.GlobalString("config"), key)
+		}
 
-		if common.Config.URL == "" {
+		if config.URL == "" {
 			fmt.Println("No URL in config file. Either you forgot to set one, or you need to provide a decryption key.")
 			os.Exit(1)
 		}
@@ -299,14 +304,14 @@ func main() {
 				log.Fatal(err)
 			}
 		} else if c.GlobalBool("forever") {
-			fmt.Printf("Pinging %s every %d seconds\n", common.Config.URL, c.GlobalInt("pingFreq"))
+			fmt.Printf("Pinging %s every %d seconds\n", config.URL, c.GlobalInt("pingFreq"))
 			for {
 				pingSite(c)
 				time.Sleep(time.Duration(c.GlobalInt("pingFreq")) * time.Second)
 			}
 		} else {
-			// common.Config.URL = "http://httpstat.us/504"
-			fmt.Printf("Pinging %s\n", common.Config.URL)
+			// config.URL = "http://httpstat.us/504"
+			fmt.Printf("Pinging %s\n", config.URL)
 			pingSite(c)
 		}
 	}

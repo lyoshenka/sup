@@ -1,0 +1,21 @@
+{{ define "config" }}
+	{{template "top" .}}
+
+	<h2>Edit Config</h2>
+
+	{{ if .success }}
+		<p class="success">{{ .success }}</p>
+	{{ end }}
+
+
+	<form action="/config" method="POST">
+		<textarea name="configData" cols="80" rows="30">{{ .configData }}</textarea><br>
+  		<input type="submit" value="Save">
+  	</form>
+
+  	<h2>Current Config</h2>
+
+	<pre>{{ .configData }}</pre>
+
+	{{template "bottom" .}}
+{{ end }}

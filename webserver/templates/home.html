@@ -8,10 +8,12 @@
 	<p>Last status: <span class="{{ if eq .lastStatus 200 }} success {{ else }} error {{ end }}">{{ .lastStatus }}</span></p>
 
 	<p>Last ping time: {{ .lastPingTime }}</p>
-	
+
 	<p>{{ .numContacts }} phone numbers on call</p>
 
 	<p><a href="/toggleEnabled">{{ if .enabled }} disable {{ else }} enable {{ end }}</a></p>
+
+	<p><a href="/config">configuration</a></p>
 
 	<p><a href="/status">JSON status</a></p>
 

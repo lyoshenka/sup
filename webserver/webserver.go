@@ -14,6 +14,7 @@ import (
 	"github.com/topscore/sup/common"
 
 	"github.com/lyoshenka/go-bindata-html-template"
+	baseTemplate "html/template"
 
 	"github.com/goji/httpauth"
 	"github.com/zenazn/goji"
@@ -23,7 +24,12 @@ import (
 var templates *template.Template
 
 func loadTemplates() error {
-	t, err := template.New("mytmpl", Asset).ParseFiles(AssetNames()...)
+	t, err := template.New("mytmpl", Asset).Funcs(template.FuncMap{
+		"safehtml": func(value interface{}) baseTemplate.HTML {
+			return baseTemplate.HTML(fmt.Sprint(value))
+		},
+	}).ParseFiles(AssetNames()...)
+
 	if err == nil {
 		templates = t
 	}
@@ -38,14 +44,53 @@ func getTemplate(name string, data interface{}) string {
 
 func homeRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 	status := common.GetStatus()
+	config := common.GetConfig()
 	templateArgs := map[string]interface{}{
-		"url":          common.Config.URL,
+		"url":          config.URL,
 		"enabled":      !status.Disabled,
 		"lastPingTime": status.LastRunAt.Format("2006-01-02 15:04:05 MST"),
 		"lastStatus":   status.LastStatus,
-		"numContacts":  len(common.Config.Phones),
+		"numContacts":  len(config.Phones),
 	}
 	fmt.Fprintln(w, getTemplate("home", templateArgs))
+}
+
+func isJSON(s string) bool {
+	var js map[string]interface{}
+	return json.Unmarshal([]byte(s), &js) == nil
+
+}
+
+func configRoute(c web.C, w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == "POST" {
+		r.ParseForm()
+		confData := r.FormValue("configData")
+
+		if !isJSON(confData) {
+			http.Error(w, "Invalid json", 500)
+			return
+		}
+
+		var newConf common.ConfigType
+		json.Unmarshal([]byte(confData), &newConf)
+		common.SetConfig(newConf)
+
+		http.Redirect(w, r, "/config?success=Saved", http.StatusFound)
+	}
+
+	conf := common.GetConfig()
+	json, err := json.MarshalIndent(conf, "", "  ")
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	templateArgs := map[string]interface{}{
+		"configData": strings.TrimSpace(string(json)),
+		"success":    r.URL.Query().Get("success"),
+	}
+	fmt.Fprintln(w, getTemplate("config", templateArgs))
 }
 
 func statusRoute(c web.C, w http.ResponseWriter, r *http.Request) {
@@ -81,6 +126,7 @@ func StartWebServer(bind, auth string) error {
 	goji.Get("/status", statusRoute)
 	goji.Get("/robots.txt", robotsRoute)
 	goji.Get("/toggleEnabled", toggleEnabledRoute)
+	goji.Handle("/config", configRoute)
 
 	listener, err := net.Listen("tcp", bind)
 	if err != nil {
