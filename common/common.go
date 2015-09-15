@@ -3,12 +3,9 @@ package common
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/topscore/sup/crypt"
 
 	"github.com/andybons/hipchat"
 	"github.com/garyburd/redigo/redis"
@@ -92,20 +89,6 @@ func SetConfig(config ConfigType) {
 
 	_, err = c.Do("SET", redisConfigKey, json)
 	check(err)
-}
-
-func LoadConfig(configFile string, key []byte) ConfigType {
-	file, err := ioutil.ReadFile(configFile)
-	check(err)
-
-	if key != nil && len(key) > 0 {
-		file, err = crypt.Decrypt(key, file)
-		check(err)
-	}
-
-	var conf ConfigType
-	json.Unmarshal(file, &conf)
-	return conf
 }
 
 func GetStatus() StatusType {

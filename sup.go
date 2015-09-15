@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -12,7 +10,6 @@ import (
 	"time"
 
 	"github.com/topscore/sup/common"
-	"github.com/topscore/sup/crypt"
 	"github.com/topscore/sup/webserver"
 
 	"github.com/codegangsta/cli"
@@ -25,24 +22,6 @@ func check(e error) {
 	if e != nil {
 		panic(e)
 	}
-}
-
-func getConfigKey(c *cli.Context) ([]byte, error) {
-	key := c.GlobalString("key")
-	if key != "" {
-		return []byte(key), nil
-	}
-
-	keyFile := c.GlobalString("keyfile")
-	if keyFile != "" {
-		key, err := ioutil.ReadFile(keyFile)
-		if err != nil {
-			return nil, err
-		}
-		return bytes.TrimSpace(key), nil
-	}
-
-	return nil, nil
 }
 
 func callDevTeam() {
@@ -136,25 +115,9 @@ func main() {
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
-			Name:  "config",
-			Value: "./config.json",
-			Usage: "file where config values are read from",
-		},
-		cli.StringFlag{
 			Name:  "logfile",
 			Value: "",
 			Usage: "log messages go here. if not present, log to stdout",
-		},
-		cli.StringFlag{
-			Name:   "key",
-			Value:  "",
-			Usage:  "key to lock/unlock config file",
-			EnvVar: "CONFIG_KEY",
-		},
-		cli.StringFlag{
-			Name:  "keyfile",
-			Value: "",
-			Usage: "file that contains key to lock/unlock config file",
 		},
 		cli.StringFlag{
 			Name:   "redis_url",
@@ -226,48 +189,6 @@ func main() {
 				common.SetStatus(status)
 			},
 		},
-		{
-			Name:  "encrypt",
-			Usage: "encrypt config file",
-			Action: func(c *cli.Context) {
-				key, err := getConfigKey(c)
-				check(err)
-				if key == nil {
-					log.Println("key required to encrypt config")
-					return
-				}
-
-				plaintext, err := ioutil.ReadFile(c.GlobalString("config"))
-				check(err)
-
-				ciphertext, err := crypt.Encrypt([]byte(key), plaintext)
-				check(err)
-
-				err = ioutil.WriteFile(c.GlobalString("config"), ciphertext, 0644)
-				check(err)
-			},
-		},
-		{
-			Name:  "decrypt",
-			Usage: "decrypt config file",
-			Action: func(c *cli.Context) {
-				key, err := getConfigKey(c)
-				check(err)
-				if key == nil {
-					log.Println("key required to decrypt config")
-					return
-				}
-
-				ciphertext, err := ioutil.ReadFile(c.GlobalString("config"))
-				check(err)
-
-				plaintext, err := crypt.Decrypt([]byte(key), ciphertext)
-				check(err)
-
-				err = ioutil.WriteFile(c.GlobalString("config"), plaintext, 0644)
-				check(err)
-			},
-		},
 	}
 
 	app.Action = func(c *cli.Context) {
@@ -281,25 +202,14 @@ func main() {
 		common.RedisURL = c.GlobalString("redis_url")
 		verbose = c.GlobalBool("verbose")
 
-		key, err := getConfigKey(c)
-		check(err)
-
 		config := common.GetConfig()
-		if config.URL == "" {
-			config = common.LoadConfig(c.GlobalString("config"), key)
-		}
-
-		if config.URL == "" {
-			fmt.Println("No URL in config file. Either you forgot to set one, or you need to provide a decryption key.")
-			os.Exit(1)
-		}
 
 		if c.GlobalBool("down") {
 			log.Println("We're going to pretend the site is down, even if it's not")
 		}
 
 		if c.GlobalBool("web") {
-			err = webserver.StartWebServer(":"+strconv.Itoa(c.GlobalInt("port")), c.GlobalString("web_auth"))
+			err := webserver.StartWebServer(":"+strconv.Itoa(c.GlobalInt("port")), c.GlobalString("web_auth"))
 			if err != nil {
 				log.Fatal(err)
 			}

@@ -46,10 +46,6 @@
 			"ImportPath": "github.com/zenazn/goji",
 			"Comment": "v0.9.0-29-g46b46e0",
 			"Rev": "46b46e00f46dda650e04f0bceeb7c40732cd5988"
-		},
-		{
-			"ImportPath": "golang.org/x/crypto/pbkdf2",
-			"Rev": "aedad9a179ec1ea11b7064c57cbc6dc30d7724ec"
 		}
 	]
 }
