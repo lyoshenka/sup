@@ -23,11 +23,12 @@ func check(e error) {
 }
 
 type ConfigType struct {
+	Phones           []string
+	URL              string
+	PingFreq         int
 	TwilioSID        string
 	TwilioAuthToken  string
-	URL              string
-	CallFrom         string
-	Phones           []string
+	TwilioCallFrom   string
 	HipchatAuthToken string
 	HipchatRoom      string
 }

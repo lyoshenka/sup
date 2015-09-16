@@ -16,8 +16,6 @@ import (
 	"github.com/sfreiberg/gotwilio"
 )
 
-var verbose bool
-
 func check(e error) {
 	if e != nil {
 		panic(e)
@@ -33,7 +31,7 @@ func callDevTeam() {
 	for _, num := range config.Phones {
 		fmt.Printf("!!! Calling %s\n", num)
 
-		_, tException, err := twilio.CallWithUrlCallbacks(config.CallFrom, num, callbackParams)
+		_, tException, err := twilio.CallWithUrlCallbacks(config.TwilioCallFrom, num, callbackParams)
 		if tException != nil {
 			panic(fmt.Sprintf("Twilio error: %+v\n", tException))
 		}
@@ -96,9 +94,6 @@ func pingSite(c *cli.Context) {
 			callDevTeam()
 		}
 	} else {
-		if verbose {
-			log.Println("All is well")
-		}
 		status.NumErrors = 0
 	}
 
@@ -130,15 +125,6 @@ func main() {
 			Name:  "down",
 			Usage: "simulate the site being down",
 		},
-		cli.BoolFlag{
-			Name:  "verbose",
-			Usage: "verbose output",
-		},
-		cli.IntFlag{
-			Name:  "pingFreq",
-			Usage: "with --forever, how often to ping the site (in seconds)",
-			Value: 60,
-		},
 
 		cli.IntFlag{
 			Name:   "port",
@@ -163,34 +149,6 @@ func main() {
 		},
 	}
 
-	app.Commands = []cli.Command{
-		{
-			Name:  "reset",
-			Usage: "reset status file",
-			Action: func(c *cli.Context) {
-				common.SetStatus(*new(common.StatusType))
-			},
-		},
-		{
-			Name:  "enable",
-			Usage: "undisable pinger",
-			Action: func(c *cli.Context) {
-				status := common.GetStatus()
-				status.Disabled = false
-				common.SetStatus(status)
-			},
-		},
-		{
-			Name:  "disable",
-			Usage: "disable pinger",
-			Action: func(c *cli.Context) {
-				status := common.GetStatus()
-				status.Disabled = true
-				common.SetStatus(status)
-			},
-		},
-	}
-
 	app.Action = func(c *cli.Context) {
 		if c.GlobalString("logfile") != "" {
 			logfile, err := os.OpenFile(c.GlobalString("logfile"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
@@ -200,7 +158,6 @@ func main() {
 		}
 
 		common.RedisURL = c.GlobalString("redis_url")
-		verbose = c.GlobalBool("verbose")
 
 		config := common.GetConfig()
 
@@ -217,10 +174,14 @@ func main() {
 			fmt.Printf("Pinging %s every %d seconds\n", config.URL, c.GlobalInt("pingFreq"))
 			for {
 				pingSite(c)
-				time.Sleep(time.Duration(c.GlobalInt("pingFreq")) * time.Second)
+				pingFreq := config.PingFreq
+				if pingFreq < 60 {
+					log.Println("pingFreq is to low, bumping it up to 60")
+					pingFreq = 60
+				}
+				time.Sleep(time.Duration(pingFreq) * time.Second)
 			}
 		} else {
-			// config.URL = "http://httpstat.us/504"
 			fmt.Printf("Pinging %s\n", config.URL)
 			pingSite(c)
 		}
