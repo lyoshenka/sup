@@ -45,7 +45,7 @@ func pingSite(c *cli.Context) {
 	config := common.GetConfig()
 	status := common.GetStatus()
 
-	if status.Disabled || config.URL == "" {
+	if config.URL == "" {
 		return
 	}
 
@@ -90,7 +90,7 @@ func pingSite(c *cli.Context) {
 	if simulateDown || isError || statusCode != http.StatusOK {
 		log.Println("Site is down. Status is ", statusCode)
 		status.NumErrors++
-		if status.NumErrors >= 5 {
+		if status.NumErrors >= 5 && !status.Disabled {
 			callDevTeam()
 		}
 	} else {
