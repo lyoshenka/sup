@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/topscore/sup/common"
@@ -103,9 +104,10 @@ func robotsRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "User-agent: *\nDisallow: /")
 }
 
-func toggleEnabledRoute(c web.C, w http.ResponseWriter, r *http.Request) {
+func setEnabledRoute(c web.C, w http.ResponseWriter, r *http.Request) {
 	status := common.GetStatus()
-	status.Disabled = !status.Disabled
+	enabled, _ := strconv.Atoi(r.URL.Query().Get("enabled"))
+	status.Disabled = enabled != 1
 	log.Printf("setting disabled to %t\n", status.Disabled)
 	common.SetStatus(status)
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -125,7 +127,7 @@ func StartWebServer(bind, auth string) error {
 	goji.Get("/", homeRoute)
 	goji.Get("/status", statusRoute)
 	goji.Get("/robots.txt", robotsRoute)
-	goji.Get("/toggleEnabled", toggleEnabledRoute)
+	goji.Get("/setEnabled", setEnabledRoute)
 	goji.Handle("/config", configRoute)
 
 	listener, err := net.Listen("tcp", bind)

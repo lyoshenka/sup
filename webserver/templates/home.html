@@ -11,7 +11,7 @@
 
 	<p>{{ .numContacts }} phone numbers on call</p>
 
-	<p><a href="/toggleEnabled">{{ if .enabled }} disable {{ else }} enable {{ end }}</a></p>
+	<p><a href="/setEnabled?enabled={{ if .enabled }}0{{ else }}1{{ end }}">{{ if .enabled }} disable {{ else }} enable {{ end }}</a></p>
 
 	<p><a href="/config">configuration</a></p>
 
