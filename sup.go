@@ -71,7 +71,7 @@ func pingSite(c *cli.Context) {
 	}
 
 	req.Close = true
-	req.Header.Set("User-Agent", "TS Simple Uptime Checker")
+	req.Header.Set("User-Agent", "SupPinger")
 
 	isError := false
 	statusCode := 0
